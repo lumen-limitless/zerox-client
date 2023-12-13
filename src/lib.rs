@@ -71,7 +71,34 @@ impl ZeroXClient {
         map.insert("sellToken", params.sell_token);
         map.insert("buyToken", params.buy_token);
         map.insert("sellAmount", params.sell_amount);
-        // Repeat the above pattern for the rest of the parameters
+
+        if let Some(taker_address) = params.taker_address {
+            map.insert("takerAddress", taker_address);
+        }
+
+        if let Some(fee_recipient) = params.fee_recipient {
+            map.insert("feeRecipient", fee_recipient);
+        }
+
+        if let Some(buy_token_percentage_fee) = params.buy_token_percentage_fee {
+            map.insert("buyTokenPercentageFee", buy_token_percentage_fee);
+        }
+
+        if let Some(slippage_percentage) = params.slippage_percentage {
+            map.insert("slippagePercentage", slippage_percentage);
+        }
+
+        if let Some(excluded_sources) = params.excluded_sources {
+            map.insert("excludedSources", excluded_sources.join(","));
+        }
+
+        if let Some(included_sources) = params.included_sources {
+            map.insert("includedSources", included_sources.join(","));
+        }
+
+        if let Some(skip_validation) = params.skip_validation {
+            map.insert("skipValidation", skip_validation);
+        }
 
         let client = reqwest::Client::new();
         let resp = client.get(&url).query(&map).headers(headers).send().await?;
@@ -205,28 +232,132 @@ impl ToTransactionRequest for ZeroXQuoteResponse {
 #[cfg(test)]
 mod tests {
 
+    use std::thread::sleep;
+
     use super::*;
 
     #[test]
     fn test_zerox_client_init() {
+        dotenv::dotenv().ok();
+
         let client = ZeroXClient::new(1, String::from("test")).unwrap();
         assert_eq!(client.base_url, "https://api.0x.org");
     }
 
     #[test]
     fn test_zerox_client_init_invalid_chain_id() {
+        dotenv::dotenv().ok();
+
         let client = ZeroXClient::new(2, String::from("test"));
         assert!(client.is_err());
     }
 
     #[tokio::test]
     async fn test_zerox_client_get_quote() {
+        dotenv::dotenv().ok();
+
         let client = ZeroXClient::new(1, std::env::var("ZEROX_API_KEY").unwrap()).unwrap();
         let quote = client
             .get_quote(ZeroXQuoteParams {
                 sell_amount: String::from("1000000000000000000"),
                 sell_token: String::from("ETH"),
                 buy_token: String::from("0x6b175474e89094c44da98b954eedeac495271d0f"), //DAI
+                ..Default::default()
+            })
+            .await;
+
+        assert!(quote.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_zerox_client_get_quote_with_slippage() {
+        sleep(std::time::Duration::from_secs(1));
+        dotenv::dotenv().ok();
+
+        let client = ZeroXClient::new(1, std::env::var("ZEROX_API_KEY").unwrap()).unwrap();
+        let quote = client
+            .get_quote(ZeroXQuoteParams {
+                sell_amount: String::from("1000000000000000000"),
+                sell_token: String::from("ETH"),
+                buy_token: String::from("0x6b175474e89094c44da98b954eedeac495271d0f"), //DAI
+                slippage_percentage: Some(String::from("0.1")),
+                ..Default::default()
+            })
+            .await;
+
+        assert!(quote.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_zerox_client_get_quote_with_excluded_sources() {
+        sleep(std::time::Duration::from_secs(1));
+        dotenv::dotenv().ok();
+
+        let client = ZeroXClient::new(1, std::env::var("ZEROX_API_KEY").unwrap()).unwrap();
+        let quote = client
+            .get_quote(ZeroXQuoteParams {
+                sell_amount: String::from("1000000000000000000"),
+                sell_token: String::from("ETH"),
+                buy_token: String::from("0x6b175474e89094c44da98b954eedeac495271d0f"), //DAI
+                excluded_sources: Some(vec![String::from("Uniswap")]),
+                ..Default::default()
+            })
+            .await;
+
+        assert!(quote.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_zerox_client_get_quote_with_included_sources() {
+        sleep(std::time::Duration::from_secs(1));
+        dotenv::dotenv().ok();
+
+        let client = ZeroXClient::new(1, std::env::var("ZEROX_API_KEY").unwrap()).unwrap();
+        let quote = client
+            .get_quote(ZeroXQuoteParams {
+                sell_amount: String::from("1000000000000000000"),
+                sell_token: String::from("ETH"),
+                buy_token: String::from("0x6b175474e89094c44da98b954eedeac495271d0f"), //DAI
+                included_sources: Some(vec![String::from("Uniswap")]),
+                ..Default::default()
+            })
+            .await;
+
+        assert!(quote.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_zerox_client_get_quote_with_fee_recipient() {
+        sleep(std::time::Duration::from_secs(1));
+        dotenv::dotenv().ok();
+
+        let client = ZeroXClient::new(1, std::env::var("ZEROX_API_KEY").unwrap()).unwrap();
+        let quote = client
+            .get_quote(ZeroXQuoteParams {
+                sell_amount: String::from("1000000000000000000"),
+                sell_token: String::from("ETH"),
+                buy_token: String::from("0x6b175474e89094c44da98b954eedeac495271d0f"), //DAI
+                fee_recipient: Some(String::from("0x00000000000")),
+                buy_token_percentage_fee: Some(String::from("0.1")),
+                ..Default::default()
+            })
+            .await;
+
+        assert!(quote.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_zerox_client_get_quote_with_taker_address() {
+        sleep(std::time::Duration::from_secs(1));
+        dotenv::dotenv().ok();
+
+        let client = ZeroXClient::new(1, std::env::var("ZEROX_API_KEY").unwrap()).unwrap();
+        let quote = client
+            .get_quote(ZeroXQuoteParams {
+                sell_amount: String::from("1000000000000000000"),
+                sell_token: String::from("ETH"),
+                buy_token: String::from("0x6b175474e89094c44da98b954eedeac495271d0f"), //DAI
+                taker_address: Some(String::from("0x00000000000")),
                 ..Default::default()
             })
             .await;
