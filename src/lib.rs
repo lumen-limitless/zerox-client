@@ -244,11 +244,12 @@ impl ToTransactionRequest for ZeroXQuoteResponse {
 #[cfg(test)]
 mod tests {
 
-    static VITALIK: &str = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045";
     use super::*;
 
+    static VITALIK: &str = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045";
+
     #[test]
-    fn test_zerox_client_init() {
+    fn test_init() {
         dotenv::dotenv().ok();
 
         let client = ZeroXClient::new(1, String::from("test")).unwrap();
@@ -256,7 +257,7 @@ mod tests {
     }
 
     #[test]
-    fn test_zerox_client_init_invalid_chain_id() {
+    fn test_init_invalid_chain_id() {
         dotenv::dotenv().ok();
 
         let client = ZeroXClient::new(2, String::from("test"));
@@ -264,8 +265,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_zerox_client_get_quote() {
-        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    async fn test_get_quote() {
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         dotenv::dotenv().ok();
 
         let client = ZeroXClient::new(1, std::env::var("ZEROX_API_KEY").unwrap()).unwrap();
@@ -283,8 +284,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_zerox_client_get_quote_with_slippage() {
-        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    async fn test_get_quote_with_slippage() {
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         dotenv::dotenv().ok();
 
         let client = ZeroXClient::new(1, std::env::var("ZEROX_API_KEY").unwrap()).unwrap();
@@ -302,8 +303,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_zerox_client_get_quote_with_excluded_sources() {
-        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    async fn test_get_quote_with_excluded_sources() {
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         dotenv::dotenv().ok();
 
         let client = ZeroXClient::new(1, std::env::var("ZEROX_API_KEY").unwrap()).unwrap();
@@ -321,8 +322,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_zerox_client_get_quote_with_included_sources() {
-        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    async fn test_get_quote_with_included_sources() {
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         dotenv::dotenv().ok();
 
         let client = ZeroXClient::new(1, std::env::var("ZEROX_API_KEY").unwrap()).unwrap();
@@ -340,8 +341,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_zerox_client_get_quote_with_fee_recipient() {
-        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    async fn test_get_quote_with_fee_recipient() {
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         dotenv::dotenv().ok();
 
         let client = ZeroXClient::new(1, std::env::var("ZEROX_API_KEY").unwrap()).unwrap();
@@ -360,8 +361,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_zerox_client_get_quote_with_taker_address() {
-        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    async fn test_get_quote_with_taker_address() {
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         dotenv::dotenv().ok();
 
         let client = ZeroXClient::new(1, std::env::var("ZEROX_API_KEY").unwrap()).unwrap();
@@ -376,12 +377,39 @@ mod tests {
             .await;
 
         assert!(quote.is_ok());
+
+        let quote = quote.unwrap();
+
+        assert!(quote.to.is_some());
+        assert!(quote.data.is_some());
+        assert!(quote.value.is_some());
+        assert!(quote.gas_price.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_get_quote_with_taker_address_fails() {
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        dotenv::dotenv().ok();
+
+        let client = ZeroXClient::new(1, std::env::var("ZEROX_API_KEY").unwrap()).unwrap();
+        let quote = client
+            .get_quote(ZeroXQuoteParams {
+                sell_amount: String::from("1000000000000000000"),
+                sell_token: String::from("ETH"),
+                buy_token: String::from("0x6b175474e89094c44da98b954eedeac495271d0f"), //DAI
+                taker_address: Some(String::from("0x49AAf12E4367966B46e840371Ad0E91E0191e8B4")),
+                ..Default::default()
+            })
+            .await;
+
+        println!("{:#?}", quote);
+        assert!(quote.is_err());
     }
 
     // #[cfg(feature = "transaction_request")]
     #[tokio::test]
-    async fn test_zerox_client_get_quote_to_transaction_request() {
-        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    async fn test_get_quote_to_transaction_request() {
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         dotenv::dotenv().ok();
 
         let client = ZeroXClient::new(1, std::env::var("ZEROX_API_KEY").unwrap()).unwrap();
