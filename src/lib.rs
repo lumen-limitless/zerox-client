@@ -1,4 +1,4 @@
-use reqwest::header::HeaderValue;
+use reqwest::{header::HeaderValue, StatusCode};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
@@ -24,6 +24,9 @@ pub enum ZeroXClientError {
 
     #[error("Failed to get quote: {0}")]
     ZeroXQuoteError(#[from] reqwest::Error),
+
+    #[error("Invalid response status code from 0x API: {0}")]
+    ZeroXInvalidResponseStatusCode(StatusCode),
 }
 
 pub struct ZeroXClient {
@@ -57,7 +60,7 @@ impl ZeroXClient {
     pub async fn get_quote(
         &self,
         params: ZeroXQuoteParams,
-    ) -> Result<ZeroXQuoteResponse, reqwest::Error> {
+    ) -> Result<ZeroXQuoteResponse, ZeroXClientError> {
         let url = format!("{}/swap/v1/quote", self.base_url);
 
         let mut headers = reqwest::header::HeaderMap::new();
@@ -102,6 +105,15 @@ impl ZeroXClient {
 
         let client = reqwest::Client::new();
         let resp = client.get(&url).query(&map).headers(headers).send().await?;
+
+        println!("{:#?}", resp);
+
+        if resp.status().as_u16() != 200 {
+            return Err(ZeroXClientError::ZeroXInvalidResponseStatusCode(
+                resp.status(),
+            ));
+        }
+
         let quote_response = resp.json().await?;
 
         Ok(quote_response)
@@ -181,15 +193,15 @@ pub struct ZeroXQuoteResponse {
     pub gross_sell_amount: Option<String>,
 }
 
-#[cfg(feature = "transaction_request")]
+// #[cfg(feature = "transaction_request")]
 use ethers::core::types::{Address, Bytes, TransactionRequest, U256};
 
-#[cfg(feature = "transaction_request")]
+// #[cfg(feature = "transaction_request")]
 pub trait ToTransactionRequest {
     fn to_transaction_request(&self) -> Result<TransactionRequest, Box<dyn std::error::Error>>;
 }
 
-#[cfg(feature = "transaction_request")]
+// #[cfg(feature = "transaction_request")]
 impl ToTransactionRequest for ZeroXQuoteResponse {
     fn to_transaction_request(&self) -> Result<TransactionRequest, Box<dyn std::error::Error>> {
         let to = self
@@ -232,8 +244,7 @@ impl ToTransactionRequest for ZeroXQuoteResponse {
 #[cfg(test)]
 mod tests {
 
-    use std::thread::sleep;
-
+    static VITALIK: &str = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045";
     use super::*;
 
     #[test]
@@ -254,6 +265,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_zerox_client_get_quote() {
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
         dotenv::dotenv().ok();
 
         let client = ZeroXClient::new(1, std::env::var("ZEROX_API_KEY").unwrap()).unwrap();
@@ -266,12 +278,13 @@ mod tests {
             })
             .await;
 
+        println!("{:#?}", quote);
         assert!(quote.is_ok());
     }
 
     #[tokio::test]
     async fn test_zerox_client_get_quote_with_slippage() {
-        sleep(std::time::Duration::from_secs(1));
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
         dotenv::dotenv().ok();
 
         let client = ZeroXClient::new(1, std::env::var("ZEROX_API_KEY").unwrap()).unwrap();
@@ -290,7 +303,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_zerox_client_get_quote_with_excluded_sources() {
-        sleep(std::time::Duration::from_secs(1));
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
         dotenv::dotenv().ok();
 
         let client = ZeroXClient::new(1, std::env::var("ZEROX_API_KEY").unwrap()).unwrap();
@@ -309,7 +322,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_zerox_client_get_quote_with_included_sources() {
-        sleep(std::time::Duration::from_secs(1));
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
         dotenv::dotenv().ok();
 
         let client = ZeroXClient::new(1, std::env::var("ZEROX_API_KEY").unwrap()).unwrap();
@@ -328,7 +341,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_zerox_client_get_quote_with_fee_recipient() {
-        sleep(std::time::Duration::from_secs(1));
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
         dotenv::dotenv().ok();
 
         let client = ZeroXClient::new(1, std::env::var("ZEROX_API_KEY").unwrap()).unwrap();
@@ -337,7 +350,7 @@ mod tests {
                 sell_amount: String::from("1000000000000000000"),
                 sell_token: String::from("ETH"),
                 buy_token: String::from("0x6b175474e89094c44da98b954eedeac495271d0f"), //DAI
-                fee_recipient: Some(String::from("0x00000000000")),
+                fee_recipient: Some(String::from(VITALIK)),
                 buy_token_percentage_fee: Some(String::from("0.1")),
                 ..Default::default()
             })
@@ -348,7 +361,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_zerox_client_get_quote_with_taker_address() {
-        sleep(std::time::Duration::from_secs(1));
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
         dotenv::dotenv().ok();
 
         let client = ZeroXClient::new(1, std::env::var("ZEROX_API_KEY").unwrap()).unwrap();
@@ -357,11 +370,44 @@ mod tests {
                 sell_amount: String::from("1000000000000000000"),
                 sell_token: String::from("ETH"),
                 buy_token: String::from("0x6b175474e89094c44da98b954eedeac495271d0f"), //DAI
-                taker_address: Some(String::from("0x00000000000")),
+                taker_address: Some(String::from(VITALIK)),
                 ..Default::default()
             })
             .await;
 
         assert!(quote.is_ok());
+    }
+
+    // #[cfg(feature = "transaction_request")]
+    #[tokio::test]
+    async fn test_zerox_client_get_quote_to_transaction_request() {
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        dotenv::dotenv().ok();
+
+        let client = ZeroXClient::new(1, std::env::var("ZEROX_API_KEY").unwrap()).unwrap();
+
+        let quote = client
+            .get_quote(ZeroXQuoteParams {
+                sell_amount: String::from("1000000000000000000"),
+                sell_token: String::from("ETH"),
+                buy_token: String::from("0x6b175474e89094c44da98b954eedeac495271d0f"), //DAI
+                ..Default::default()
+            })
+            .await;
+
+        assert!(quote.is_ok());
+
+        let quote = quote.unwrap();
+
+        println!("{:#?}", quote);
+
+        assert!(quote.to.is_some());
+        assert!(quote.data.is_some());
+        assert!(quote.value.is_some());
+        assert!(quote.gas_price.is_some());
+
+        let transaction_request = quote.to_transaction_request();
+
+        assert!(transaction_request.is_ok());
     }
 }
