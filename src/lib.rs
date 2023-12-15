@@ -1,7 +1,9 @@
 use reqwest::{header::HeaderValue, StatusCode};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::HashMap;
 use thiserror::Error;
+use tracing::debug;
 
 #[derive(Serialize, Deserialize, Default)]
 pub struct ZeroXQuoteParams {
@@ -27,6 +29,9 @@ pub enum ZeroXClientError {
 
     #[error("Invalid response status code from 0x API: {0}")]
     ZeroXInvalidResponseStatusCode(StatusCode),
+
+    #[error("Failed to parse response from 0x API: {0}")]
+    ZeroXInvalidResponse(#[from] serde_json::Error),
 }
 
 pub struct ZeroXClient {
@@ -104,9 +109,10 @@ impl ZeroXClient {
         }
 
         let client = reqwest::Client::new();
+
         let resp = client.get(&url).query(&map).headers(headers).send().await?;
 
-        println!("{:#?}", resp);
+        debug!("{:#?}", resp);
 
         if resp.status().as_u16() != 200 {
             return Err(ZeroXClientError::ZeroXInvalidResponseStatusCode(
@@ -114,7 +120,11 @@ impl ZeroXClient {
             ));
         }
 
-        let quote_response = resp.json().await?;
+        let quote_response: Value = resp.json().await?;
+
+        debug!("{:#?}", quote_response);
+
+        let quote_response = serde_json::from_value::<ZeroXQuoteResponse>(quote_response)?;
 
         Ok(quote_response)
     }
@@ -243,6 +253,8 @@ impl ToTransactionRequest for ZeroXQuoteResponse {
 
 #[cfg(test)]
 mod tests {
+
+    use ethers::utils::parse_ether;
 
     use super::*;
 
@@ -414,11 +426,14 @@ mod tests {
 
         let client = ZeroXClient::new(1, std::env::var("ZEROX_API_KEY").unwrap()).unwrap();
 
+        let sell_amount = parse_ether("1").unwrap().to_string();
+
         let quote = client
             .get_quote(ZeroXQuoteParams {
-                sell_amount: String::from("1000000000000000000"),
+                sell_amount: sell_amount.clone(),
                 sell_token: String::from("ETH"),
                 buy_token: String::from("0x6b175474e89094c44da98b954eedeac495271d0f"), //DAI
+                taker_address: Some(String::from(VITALIK)),
                 ..Default::default()
             })
             .await;
@@ -437,5 +452,12 @@ mod tests {
         let transaction_request = quote.to_transaction_request();
 
         assert!(transaction_request.is_ok());
+
+        let transaction_request = transaction_request.unwrap();
+
+        assert_eq!(
+            transaction_request.value,
+            Some(sell_amount.parse::<U256>().unwrap())
+        );
     }
 }
