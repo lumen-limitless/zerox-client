@@ -1,53 +1,42 @@
-name: Rust CI
+name: Rust CI/CD
 
+# run workflow when the condition is met
 on:
+  # run when code is pushed on the `main` branch
   push:
-    branches: [master]
-  pull_request:
-    branches: [master]
 
+  # run when a pull request to the `main` branch
+  pull_request:
+
+# env variables
 env:
   CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: full
+  ZEROX_API_KEY: ${{ secrets.ZEROX_API_KEY }}
 
+# jobs
 jobs:
+  # job name
   build:
+    # os to run the job on support macOS and windows also
     runs-on: ubuntu-latest
-
-    env:
-      RUST_LOG: info
-      RUST_BACKTRACE: full
-
-      ZEROX_API_KEY: ${{ secrets.ZEROX_API_KEY }}
-
+    # steps for job
     steps:
-      - uses: actions/checkout@v2
-      - name: Setup Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-          components: clippy, rustfmt
+      # this will get the code and set the git
+      - uses: actions/checkout@v3
 
       - name: Check formatting
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: -- --check
+        run: cargo fmt -- --check
 
       - name: Lint with Clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: -- -D warnings
+        run: cargo clippy --all-targets --all-features -- -D warnings
 
+      # run the build
       - name: Build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --verbose
+        # using cargo to build
+        run: cargo build --release
 
-      - name: Run tests
-        uses: actions-rs/cargo@v1
-        with:
-          command: test -- --test-threads 1
-          args: --verbose
+      # run the tests
+      - name: Test
+        # using cargo to test
+        run: cargo test --release -- --test-threads 1
