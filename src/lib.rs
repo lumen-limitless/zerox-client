@@ -238,6 +238,8 @@ impl ToTransactionRequest for ZeroXQuoteResponse {
             .ok_or("Missing 'gas_price' field")?
             .parse::<U256>()?;
 
+        let chain_id = self.chain_id.ok_or("Missing 'chain_id' field")?;
+
         Ok(TransactionRequest {
             from: None,
             to: Some(to.into()),
@@ -246,7 +248,7 @@ impl ToTransactionRequest for ZeroXQuoteResponse {
             value: Some(value),
             data: Some(data),
             nonce: None,
-            chain_id: None,
+            chain_id: Some(chain_id.into()),
         })
     }
 }
@@ -254,7 +256,7 @@ impl ToTransactionRequest for ZeroXQuoteResponse {
 #[cfg(test)]
 mod tests {
 
-    use ethers::utils::parse_ether;
+    use ethers::{types::transaction, utils::parse_ether};
 
     use super::*;
 
@@ -455,9 +457,36 @@ mod tests {
 
         let transaction_request = transaction_request.unwrap();
 
+        let transaction_request = transaction_request.from(VITALIK.parse::<Address>().unwrap());
+
         assert_eq!(
             transaction_request.value,
             Some(sell_amount.parse::<U256>().unwrap())
         );
+
+        assert_eq!(
+            transaction_request.gas_price,
+            Some(quote.gas_price.unwrap().parse::<U256>().unwrap())
+        );
+
+        assert_eq!(
+            transaction_request.to,
+            Some(quote.to.unwrap().parse::<Address>().unwrap().into())
+        );
+
+        assert_eq!(
+            transaction_request.from,
+            Some(VITALIK.parse::<Address>().unwrap())
+        );
+
+        assert_eq!(
+            transaction_request.data,
+            Some(quote.data.unwrap().parse::<Bytes>().unwrap())
+        );
+
+        assert_eq!(
+            transaction_request.chain_id,
+            Some(quote.chain_id.unwrap().into())
+        )
     }
 }
