@@ -1,4 +1,7 @@
-use reqwest::{header::HeaderValue, StatusCode};
+use reqwest::{
+    header::{HeaderValue, InvalidHeaderValue},
+    StatusCode,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -26,6 +29,9 @@ pub enum ZeroXClientError {
 
     #[error("Failed to get quote: {0}")]
     ZeroXQuoteError(#[from] reqwest::Error),
+
+    #[error("Invalid header value: {0}")]
+    ZeroXInvalidHeaderValue(#[from] InvalidHeaderValue),
 
     #[error("Invalid response status code from 0x API: {0}")]
     ZeroXInvalidResponseStatusCode(StatusCode),
@@ -69,10 +75,13 @@ impl ZeroXClient {
         let url = format!("{}/swap/v1/quote", self.base_url);
 
         let mut headers = reqwest::header::HeaderMap::new();
-        headers.append(
-            "0x-api-key",
-            HeaderValue::from_str(self.api_key.as_str()).unwrap(),
-        );
+        let value = match HeaderValue::from_str(&self.api_key) {
+            Ok(v) => v,
+            Err(err) => {
+                return Err(ZeroXClientError::ZeroXInvalidHeaderValue(err));
+            }
+        };
+        headers.append("0x-api-key", value);
         headers.append("Content-Type", HeaderValue::from_static("application/json"));
 
         let mut map = HashMap::new();
@@ -256,7 +265,7 @@ impl ToTransactionRequest for ZeroXQuoteResponse {
 #[cfg(test)]
 mod tests {
 
-    use ethers::{types::transaction, utils::parse_ether};
+    use ethers::utils::parse_ether;
 
     use super::*;
 
