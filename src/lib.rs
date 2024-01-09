@@ -56,6 +56,7 @@ impl ZeroXClient {
             (42220, "https://celo.api.0x.org".to_string()),
             (56, "https://bsc.api.0x.org".to_string()),
             (10, "https://optimisim.api.0x.org".to_string()),
+            (11155111, "https://sepolia.api.0x.org".to_string()),
         ]
         .into_iter()
         .collect();
